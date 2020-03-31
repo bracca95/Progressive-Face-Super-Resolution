@@ -1,0 +1,7 @@
+# directories and their content
+dataset/
+output/
+result/
+__pycache__
+
+.DS_Store

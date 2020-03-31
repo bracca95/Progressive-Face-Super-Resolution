@@ -75,6 +75,7 @@ class ConvBlock(nn.Module):
         return self.conv(x)
 
 
+# https://pytorch.org/docs/stable/nn.html#torch.nn.Module
 class Generator(nn.Module):
     def __init__(self, ):
         super(Generator, self).__init__()
