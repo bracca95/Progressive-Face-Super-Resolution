@@ -1,11 +1,13 @@
+""" GAN model modified for this purpose
+    
+Original EqualConv2d code is at:
+https://github.com/rosinality/style-based-gan-pytorch/blob/master/model.py
+"""
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from math import sqrt
-
-"""Original EqualConv2d code is at 
-   https://github.com/rosinality/style-based-gan-pytorch/blob/master/model.py
-"""
     
 class EqualLR:
     def __init__(self, name):
