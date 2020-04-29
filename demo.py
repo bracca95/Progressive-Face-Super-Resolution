@@ -54,5 +54,3 @@ if __name__ == '__main__':
 
         utils.save_image(0.5*output_image+0.5, args.output_path)
 
-        # resource closed by _with_
-

@@ -96,22 +96,24 @@ class CelebDataSet(Dataset):
     def __getitem__(self, index):
         image_path = join(self.img_path, self.image_list[index][0])
         
-        # RGB 128x128 original image
+        # this shall be your benchmark
         target_image = Image.open(image_path).convert('RGB')
         target_image = self.pre_process(target_image)
-        target_image = self.totensor(target_image)                  # normalization
-
-        # input image is the orginal, downsampled at 16x16
-        input_image = self._16x16_down_sampling(x2_target_image)
-        input_image = self.totensor(input_image)                    # normalization
+        
+        # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
+        x4_target_image = self._64x64_down_sampling(target_image)
         
         # original downsampled at 32x32. This'll be compared with input_image 2x upsampling
         x2_target_image = self._32x32_down_sampling(x4_target_image)
-        x2_target_image = self.totensor(x2_target_image)
+        
+        # input image is the orginal, downsampled at 16x16
+        input_image = self._16x16_down_sampling(x2_target_image)
 
-        # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
-        x4_target_image = self._64x64_down_sampling(target_image)
-        x4_target_image = self.totensor(x4_target_image)            # normalization
+        # normalize all images
+        x2_target_image = self.totensor(x2_target_image)
+        x4_target_image = self.totensor(x4_target_image)
+        target_image = self.totensor(target_image)
+        input_image = self.totensor(input_image)
 
         return x2_target_image, x4_target_image, target_image, input_image
 
