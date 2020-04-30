@@ -1,14 +1,18 @@
 import torch
 import argparse
+import os
 from model import Generator
 from PIL import Image
 import torchvision.transforms as transforms
 from torchvision import utils
 
+from dataloader import CelebDataSet
+from compare import Comparison
+
 if __name__ == '__main__':
     ## PARSER
     parser = argparse.ArgumentParser('Demo of Progressive Face Super-Resolution')
-    parser.add_argument('--image-path', type=str)
+    parser.add_argument('--image-id', type=int)
     parser.add_argument('--checkpoint-path', default='./checkpoints/generator_checkpoint_singleGPU.ckpt')
     parser.add_argument('--output-path', type=str)
     args = parser.parse_args()
@@ -35,24 +39,24 @@ if __name__ == '__main__':
         iteration = g_checkpoint['iteration']
         print('pre-trained model is loaded step:%d, alpha:%d iteration:%d'%(step, alpha, iteration))
 
-        input_image = Image.open(args.image_path).convert('RGB')
+        dataset = CelebDataSet(data_path='./dataset')
+        
+        # get person image(s) and pd.dataframe of all the other people
+        x2_target_image, x4_target_image, target_image, input_image = dataset.getPerson(args.image_id)
+        DF_people = dataset.getPeople()
 
-        _16x16_down_sampling = transforms.Resize((16,16))
-        _64x64_down_sampling = transforms.Resize((64, 64))
-        _32x32_down_sampling = transforms.Resize((32, 32))
+        # load 16x16 image to device
+        input_image = input_image.unsqueeze(0).to(device)
 
-        totensor = transforms.Compose([
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                                    ])
+        # crete output dir
+        if not os.path.exists(args.output_path):
+            os.makedirs(args.output_path)
+        
+        # generate and save image
+        output_filename = os.path.join(args.output_path, 'imageID_{}.jpg'.format(str(args.image_id)))
+        output_image = generator(input_image, step, alpha)
+        utils.save_image(0.5*output_image+0.5, output_filename)
 
-        #Note: Our netowork is trained by progressively downsampled images.
-        transformed_image = _16x16_down_sampling(_32x32_down_sampling(_64x64_down_sampling(input_image)))
-        transformed_image = totensor(transformed_image).unsqueeze(0).to(device)
-
-        output_image = generator(transformed_image, step, alpha)
-
-        utils.save_image(0.5*output_image+0.5, args.output_path)
-
-        # resource closed by _with_
-
+        comp = Comparison(output_filename, DF_people, args.image_id)
+        comp.compare()
+        print(comp.getResult())

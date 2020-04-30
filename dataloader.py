@@ -1,7 +1,31 @@
-from torch.utils.data.dataset import Dataset
+"""Compare identities
+
+This script first extract one person for each identity. These will be later used to perform super-resolution.
+Then, it removes that person from the original datasets.
+The super-resolved image will be compared with a face recognition algorithm to understand which group it
+belongs to.
+"""
+
+import torch
 import torchvision.transforms as transforms
+from torch import optim, nn
+from torch.utils.data.dataset import Dataset
+from torch.utils.data import DataLoader
+from torch.autograd import Variable, grad
+from torchvision import utils
 from os.path import join
 from PIL import Image       # PIL is currently being developed as Pillow
+import argparse
+import os
+import sys
+from math import log10
+from ssim import ssim, msssim
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import pickle
+import csv
+import pandas as pd
 
 class CelebDataSet(Dataset):
     """CelebA dataset
@@ -19,67 +43,54 @@ class CelebDataSet(Dataset):
     cropping, padding, and horizontal flipping are commonly used to train large neural networks.
     """
 
-    def __init__(self, data_path = './dataset/', state = 'train', data_augmentation=None):
+    def __init__(self, data_path = './dataset/'):
         ## DEFINE PATHS
         self.main_path = data_path
-        self.state = state
-        self.data_augmentation = data_augmentation
 
         self.img_path = join(self.main_path, 'CelebA/Img/img_align_celeba')
+        self.identity_partition_path = join(self.main_path, 'Anno/identity_CelebA.txt')
         self.eval_partition_path = join(self.main_path, 'Anno/list_eval_partition.txt')
+        self.final_csv_path = join(self.main_path, 'Anno/definitive.csv')
 
-        ## INIT IMG LISTS
-        train_img_list = []
-        val_img_list = []
-        test_img_list = []
+        # open files and create csv
+        # https://stackoverflow.com/a/19008279
+        with open(self.eval_partition_path, 'r') as f1, \
+             open(self.identity_partition_path, 'r') as f2, \
+             open(self.final_csv_path, 'w') as f3:
+             for x, y in zip(f1, f2):
+                x = x.split()
+                y = y.split()
+                new_line = '{},{},{}\n'.format(x[0], x[1], y[1])
+                f3.write(new_line)  
+        
+        # https://stackoverflow.com/a/28163238/7347566
+        with open(self.final_csv_path, newline='') as fc1:
+            r = csv.reader(fc1)
+            line = [line for line in r]
 
-        ## READ FILE list_eval_partition.txt
-        f = open(self.eval_partition_path, mode='r')
+        with open(self.final_csv_path, 'w', newline='') as fc2:
+            w = csv.writer(fc2)
+            w.writerow(['person','group','identity'])
+            w.writerows(line)
 
-        while True:
-            # the split is used to separate filename from label
-            line = f.readline().split()
-            if not line: break
+        ## READ CSV AND EXTRACT VALUES
+        df = pd.read_csv(self.final_csv_path)
+        
+        # extract one person for each identity
+        df_sing = df.groupby(['identity']).max()                # one person
+        df_sing.reset_index(inplace=True)                       # reset the index
+        df_sing = df_sing[['person', 'group', 'identity']]      # reorder to be consistent
 
-            # 0/1/else defines train/val/test
-            if line[1] == '0':
-                train_img_list.append(line)
-            elif line[1] =='1':
-                val_img_list.append(line)
-            else:
-                test_img_list.append(line)
+        # remove person if already in the previous group
+        # https://stackoverflow.com/questions/50449088/check-if-value-from-one-dataframe-exists-in-another-dataframe
+        filt = (df['person'].isin(df_sing['person']) == False)
+        df_compare = df.loc[filt]
 
-        f.close()
+        self.pre_process = transforms.Compose([
+                                        transforms.CenterCrop((178, 178)),
+                                        transforms.Resize((128,128)),
+                                        ])
 
-        # state is passed as optional argument (default='train')
-        if state=='train':
-            train_img_list.sort()
-            self.image_list = train_img_list
-        elif state=='val':
-            val_img_list.sort()
-            self.image_list = val_img_list
-        else:
-            test_img_list.sort()
-            self.image_list = test_img_list
-
-
-        ## DEFINE PRE PROCESSING STRATEGY: DATA AUGMENTATION OR NOT
-        # pre-processing is only applied to 128x128 target image
-        if state=='train' and self.data_augmentation:
-            self.pre_process = transforms.Compose([
-                                                transforms.RandomHorizontalFlip(),
-                                                transforms.CenterCrop((178, 178)),
-                                                transforms.Resize((128, 128)),
-                                                transforms.RandomRotation(20, resample=Image.BILINEAR),
-                                                transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1)
-                                               ])
-        else:
-            self.pre_process = transforms.Compose([
-                                            transforms.CenterCrop((178, 178)),
-                                            transforms.Resize((128,128)),
-                                            ])
-
-        ## DEFINE totensor OPERATION. FIRST MAKE IT TENSOR (as usual), THEN NORMALIZE
         self.totensor = transforms.Compose([
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
@@ -90,30 +101,51 @@ class CelebDataSet(Dataset):
         self._32x32_down_sampling = transforms.Resize((32, 32))
         self._16x16_down_sampling = transforms.Resize((16,16))
 
-    # https://stackoverflow.com/questions/43627405/understanding-getitem-method
-    # this overwrites the built-in __getitem__ method
-    # for this to take effect: dataloader = CelebDataSet() \ dataloader[i]
-    def __getitem__(self, index):
-        image_path = join(self.img_path, self.image_list[index][0])
+        ## RETURN VALUES
+        self.df_single = df_sing
+        self.df_compare = df_compare
+
+    
+    # provide as input an identity number
+    def getPerson(self, iden):
+        # https://stackoverflow.com/a/47917648
+        filt = (self.df_single['identity'] == iden)
+        image_path = join(self.img_path, self.df_single.loc[filt]['person'].tolist()[0])
         
-        # RGB 128x128 original image
+        # this shall be your benchmark
         target_image = Image.open(image_path).convert('RGB')
         target_image = self.pre_process(target_image)
-        target_image = self.totensor(target_image)                  # normalization
-
-        # input image is the orginal, downsampled at 16x16
-        input_image = self._16x16_down_sampling(x2_target_image)
-        input_image = self.totensor(input_image)                    # normalization
+        
+        # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
+        x4_target_image = self._64x64_down_sampling(target_image)
         
         # original downsampled at 32x32. This'll be compared with input_image 2x upsampling
         x2_target_image = self._32x32_down_sampling(x4_target_image)
-        x2_target_image = self.totensor(x2_target_image)
+        
+        # input image is the orginal, downsampled at 16x16
+        input_image = self._16x16_down_sampling(x2_target_image)
 
-        # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
-        x4_target_image = self._64x64_down_sampling(target_image)
-        x4_target_image = self.totensor(x4_target_image)            # normalization
+        # normalize all images
+        x2_target_image = self.totensor(x2_target_image)
+        x4_target_image = self.totensor(x4_target_image)
+        target_image = self.totensor(target_image)
+        input_image = self.totensor(input_image)
+
+        # debug
+        print(image_path)
 
         return x2_target_image, x4_target_image, target_image, input_image
 
-    def __len__(self):
-        return len(self.image_list)
+
+    def getPeople(self):
+        return self.df_compare
+
+# ## DEBUG MAIN
+# if __name__ == '__main__':
+#     dataset = CelebDataSet(data_path='./dataset')
+    
+#     # dizFull, dizTrain, dizTest = dataset.getDict()
+#     x2_target_image, x4_target_image, target_image, input_image = dataset.getPerson(1)
+
+#     # print(df_train)
+#     # print(dizTest)
