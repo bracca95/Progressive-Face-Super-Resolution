@@ -14,8 +14,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('Demo of Progressive Face Super-Resolution')
     parser.add_argument('--image-id', type=int)
     parser.add_argument('--checkpoint-path', default='./checkpoints/generator_checkpoint_singleGPU.ckpt')
-    parser.add_argument('--output-path', type=str)
     args = parser.parse_args()
+
+    output_path = './OUTPUT_PATH'
 
     # check if using GPU
     if torch.cuda.is_available():
@@ -49,14 +50,17 @@ if __name__ == '__main__':
         input_image = input_image.unsqueeze(0).to(device)
 
         # crete output dir
-        if not os.path.exists(args.output_path):
-            os.makedirs(args.output_path)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
         
         # generate and save image
-        output_filename = os.path.join(args.output_path, 'imageID_{}.jpg'.format(str(args.image_id)))
+        output_filename = os.path.join(output_path, 'imageID_{}.jpg'.format(str(args.image_id)))
         output_image = generator(input_image, step, alpha)
         utils.save_image(0.5*output_image+0.5, output_filename)
 
         comp = Comparison(output_filename, DF_people, args.image_id)
         comp.compare()
-        print(comp.getResult())
+        
+        printable = comp.getResult()
+        for k, v in printable.items():
+            print(k, v)

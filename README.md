@@ -18,6 +18,10 @@ This code support [NVIDIA apex-Distributed Training in Pytorch](https://github.c
 Also, we refered state-of-the-art [Face Alignment Network](https://github.com/1adrianb/face-alignment) in order to get face SR-oriented facial landmark heatmap.
 
 ### Data Preparation
+Change branch to experimental one with:
+```bash
+git checkout my_mod
+```
 
 * [CelebA dataset](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html)
 
@@ -32,7 +36,7 @@ and then, download dataset. Anno & Img.
 #### Demonstration
 * Single face image demonstartion
 ```bash
-$ python demo.py --image-id <ID> --checkpoint-path './checkpoints/generator_checkpoint_singleGPU.ckpt' --output-path './OUTPUT_PATH'
+$ python demo.py --image-id <ID> --checkpoint-path './checkpoints/generator_checkpoint_singleGPU.ckpt'
 ```
 
 

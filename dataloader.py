@@ -132,7 +132,7 @@ class CelebDataSet(Dataset):
         input_image = self.totensor(input_image)
 
         # debug
-        print(image_path)
+        #print('considered image', image_path)
 
         return x2_target_image, x4_target_image, target_image, input_image
 
