@@ -86,58 +86,22 @@ class CelebDataSet(Dataset):
         filt = (df['person'].isin(df_sing['person']) == False)
         df_compare = df.loc[filt]
 
-        self.pre_process = transforms.Compose([
-                                        transforms.CenterCrop((178, 178)),
-                                        transforms.Resize((128,128)),
-                                        ])
-
-        self.totensor = transforms.Compose([
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                                    ])
-
-        ## DEFINE THREE SCALING FOR PROGRESSIVE TRAINING
-        self._64x64_down_sampling = transforms.Resize((64, 64))
-        self._32x32_down_sampling = transforms.Resize((32, 32))
-        self._16x16_down_sampling = transforms.Resize((16,16))
-
         ## RETURN VALUES
         self.df_single = df_sing
         self.df_compare = df_compare
 
     
     # provide as input an identity number
-    def getPerson(self, iden):
+    def getPersonPath(self, iden):
         # https://stackoverflow.com/a/47917648
         filt = (self.df_single['identity'] == iden)
-        image_path = join(self.img_path, self.df_single.loc[filt]['person'].tolist()[0])
+        self.image_path = join(self.img_path, 
+                                self.df_single.loc[filt]['person'].tolist()[0])
         
-        # this shall be your benchmark
-        target_image = Image.open(image_path).convert('RGB')
-        target_image = self.pre_process(target_image)
-        
-        # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
-        x4_target_image = self._64x64_down_sampling(target_image)
-        
-        # original downsampled at 32x32. This'll be compared with input_image 2x upsampling
-        x2_target_image = self._32x32_down_sampling(x4_target_image)
-        
-        # input image is the orginal, downsampled at 16x16
-        input_image = self._16x16_down_sampling(x2_target_image)
-
-        # normalize all images
-        x2_target_image = self.totensor(x2_target_image)
-        x4_target_image = self.totensor(x4_target_image)
-        target_image = self.totensor(target_image)
-        input_image = self.totensor(input_image)
-
-        # debug
-        #print('considered image', image_path)
-
-        return x2_target_image, x4_target_image, target_image, input_image
+        return self.image_path
 
 
-    def getPeople(self):
+    def getPeopleDF(self):
         return self.df_compare
 
 # ## DEBUG MAIN

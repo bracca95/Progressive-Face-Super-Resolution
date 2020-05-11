@@ -8,6 +8,7 @@ from torchvision import utils
 
 from dataloader import CelebDataSet
 from compare import Comparison
+from transformations import Transformations
 
 if __name__ == '__main__':
     ## PARSER
@@ -40,11 +41,16 @@ if __name__ == '__main__':
         iteration = g_checkpoint['iteration']
         print('pre-trained model is loaded step:%d, alpha:%d iteration:%d'%(step, alpha, iteration))
 
-        dataset = CelebDataSet(data_path='./dataset')
+        dataset = CelebDataSet(data_path='./dataset')       # init dataset
+        transfo = Transformations()                         # init transform.
+        
+        # choose the image
+        img_to_SR = dataset.getPersonPath(args.image_id)
         
         # get person image(s) and pd.dataframe of all the other people
-        x2_target_image, x4_target_image, target_image, input_image = dataset.getPerson(args.image_id)
-        DF_people = dataset.getPeople()
+        DF_people = dataset.getPeopleDF()
+
+        x2_target_image, x4_target_image, target_image, input_image = transfo.perform(img_to_SR)
 
         # load 16x16 image to device
         input_image = input_image.unsqueeze(0).to(device)
