@@ -34,9 +34,15 @@ create a folder:
 and then, download dataset. Anno & Img.
 
 #### Demonstration
-* Single face image demonstartion
+You can choose the run the demonstration on the CelebA dataset or by providing a face image. In both cases, `--checkpoint-path` can be omitted if you are willing to use the following one.
+* CelebA Dataset
 ```bash
 $ python demo.py --image-id <ID> --checkpoint-path './checkpoints/generator_checkpoint_singleGPU.ckpt'
+```
+
+* User-defined image
+```bash
+$ python demo.py --image-dirpath <path> --checkpoint-path './checkpoints/generator_checkpoint_singleGPU.ckpt'
 ```
 
 

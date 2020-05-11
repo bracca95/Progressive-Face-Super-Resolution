@@ -3,5 +3,7 @@ dataset/
 output/
 result/
 __pycache__
+utils/
+figure/faces
 
 .DS_Store

@@ -13,7 +13,8 @@ from transformations import Transformations
 if __name__ == '__main__':
     ## PARSER
     parser = argparse.ArgumentParser('Demo of Progressive Face Super-Resolution')
-    parser.add_argument('--image-id', type=int)
+    parser.add_argument('--image-id', type=int, default=None)
+    parser.add_argument('--image-dirpath', type=str, default=None)
     parser.add_argument('--checkpoint-path', default='./checkpoints/generator_checkpoint_singleGPU.ckpt')
     args = parser.parse_args()
 
@@ -41,15 +42,17 @@ if __name__ == '__main__':
         iteration = g_checkpoint['iteration']
         print('pre-trained model is loaded step:%d, alpha:%d iteration:%d'%(step, alpha, iteration))
 
-        dataset = CelebDataSet(data_path='./dataset')       # init dataset
-        transfo = Transformations()                         # init transform.
+        # if you want to work with CelebA dataset
+        if args.image_id is not None:
+            dataset = CelebDataSet(data_path='./dataset')       # init dataset
+            img_to_SR = dataset.getPersonPath(args.image_id)    # choose the image
+            DF_people = dataset.getPeopleDF()                   # people DF
         
-        # choose the image
-        img_to_SR = dataset.getPersonPath(args.image_id)
-        
-        # get person image(s) and pd.dataframe of all the other people
-        DF_people = dataset.getPeopleDF()
+        # if you want to work with a random image uploaded
+        if args.image_dirpath is not None:
+            img_to_SR = args.image_dirpath
 
+        transfo = Transformations()                         # init transform.
         x2_target_image, x4_target_image, target_image, input_image = transfo.perform(img_to_SR)
 
         # load 16x16 image to device
@@ -64,9 +67,10 @@ if __name__ == '__main__':
         output_image = generator(input_image, step, alpha)
         utils.save_image(0.5*output_image+0.5, output_filename)
 
-        comp = Comparison(output_filename, DF_people, args.image_id)
-        comp.compare()
+        if args.image_id is not None:
+            comp = Comparison(output_filename, DF_people, args.image_id)
+            comp.compare()
         
-        printable = comp.getResult()
-        for k, v in printable.items():
-            print(k, v)
+            printable = comp.getResult()
+            for k, v in printable.items():
+                print(k, v)

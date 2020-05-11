@@ -103,13 +103,3 @@ class CelebDataSet(Dataset):
 
     def getPeopleDF(self):
         return self.df_compare
-
-# ## DEBUG MAIN
-# if __name__ == '__main__':
-#     dataset = CelebDataSet(data_path='./dataset')
-    
-#     # dizFull, dizTrain, dizTest = dataset.getDict()
-#     x2_target_image, x4_target_image, target_image, input_image = dataset.getPerson(1)
-
-#     # print(df_train)
-#     # print(dizTest)
