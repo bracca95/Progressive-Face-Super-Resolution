@@ -1,6 +1,6 @@
-from torch.utils.data.dataset import Dataset
+import os
 import torchvision.transforms as transforms
-from os.path import join
+from torch.utils.data.dataset import Dataset
 from PIL import Image       # PIL is currently being developed as Pillow
 
 class CelebDataSet(Dataset):
@@ -19,71 +19,22 @@ class CelebDataSet(Dataset):
     cropping, padding, and horizontal flipping are commonly used to train large neural networks.
     """
 
-    def __init__(self, data_path = './dataset/', state = 'train', data_augmentation=None):
+    def __init__(self, data_path='./dataset/', state='train', data_aug=None):
+        
         ## DEFINE PATHS
         self.main_path = data_path
         self.state = state
-        self.data_augmentation = data_augmentation
+        self.data_aug = data_aug
 
-        self.img_path = join(self.main_path, 'CelebA/Img/img_align_celeba')
-        self.eval_partition_path = join(self.main_path, 'Anno/list_eval_partition.txt')
-
-        ## INIT IMG LISTS
-        train_img_list = []
-        val_img_list = []
-        test_img_list = []
-
-        ## READ FILE list_eval_partition.txt
-        f = open(self.eval_partition_path, mode='r')
-
-        while True:
-            # the split is used to separate filename from label
-            line = f.readline().split()
-            if not line: break
-
-            # 0/1/else defines train/val/test
-            if line[1] == '0':
-                train_img_list.append(line)
-            elif line[1] =='1':
-                val_img_list.append(line)
-            else:
-                test_img_list.append(line)
-
-        f.close()
-
-        # state is passed as optional argument (default='train')
-        if state=='train':
-            train_img_list.sort()
-            self.image_list = train_img_list
-        elif state=='val':
-            val_img_list.sort()
-            self.image_list = val_img_list
-        else:
-            test_img_list.sort()
-            self.image_list = test_img_list
-
-
-        ## DEFINE PRE PROCESSING STRATEGY: DATA AUGMENTATION OR NOT
-        # pre-processing is only applied to 128x128 target image
-        if state=='train' and self.data_augmentation:
-            self.pre_process = transforms.Compose([
-                                                transforms.RandomHorizontalFlip(),
-                                                transforms.CenterCrop((178, 178)),
-                                                transforms.Resize((128, 128)),
-                                                transforms.RandomRotation(20, resample=Image.BILINEAR),
-                                                transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1)
-                                               ])
-        else:
-            self.pre_process = transforms.Compose([
-                                            transforms.CenterCrop((178, 178)),
-                                            transforms.Resize((128,128)),
-                                            ])
+        self.img_path = os.path.join(self.main_path, 'HR')
+        self.image_list = os.listdir(self.img_path)
+        self.image_list.sort()
 
         ## DEFINE totensor OPERATION. FIRST MAKE IT TENSOR (as usual), THEN NORMALIZE
         self.totensor = transforms.Compose([
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                                    ])
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                        ])
 
         ## DEFINE THREE SCALING FOR PROGRESSIVE TRAINING
         self._64x64_down_sampling = transforms.Resize((64, 64))
@@ -94,11 +45,10 @@ class CelebDataSet(Dataset):
     # this overwrites the built-in __getitem__ method
     # for this to take effect: dataloader = CelebDataSet() \ dataloader[i]
     def __getitem__(self, index):
-        image_path = join(self.img_path, self.image_list[index][0])
+        image_path = os.path.join(self.img_path, self.image_list[index])
         
         # this shall be your benchmark
         target_image = Image.open(image_path).convert('RGB')
-        target_image = self.pre_process(target_image)
         
         # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
         x4_target_image = self._64x64_down_sampling(target_image)
