@@ -3,6 +3,8 @@ import torchvision.transforms as transforms
 from torch.utils.data.dataset import Dataset
 from PIL import Image       # PIL is currently being developed as Pillow
 
+from transformations import Transformations
+
 class CelebDataSet(Dataset):
     """CelebA dataset
     
@@ -19,7 +21,7 @@ class CelebDataSet(Dataset):
     cropping, padding, and horizontal flipping are commonly used to train large neural networks.
     """
 
-    def __init__(self, data_path='./dataset/', state='train', data_aug=None):
+    def __init__(self, data_path='./dataset/', state='train', data_aug=False):
         
         ## DEFINE PATHS
         self.main_path = data_path
@@ -30,42 +32,19 @@ class CelebDataSet(Dataset):
         self.image_list = os.listdir(self.img_path)
         self.image_list.sort()
 
-        ## DEFINE totensor OPERATION. FIRST MAKE IT TENSOR (as usual), THEN NORMALIZE
-        self.totensor = transforms.Compose([
-                        transforms.ToTensor(),
-                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                        ])
+        self.transf = Transformations(self.data_aug)
 
-        ## DEFINE THREE SCALING FOR PROGRESSIVE TRAINING
-        self._64x64_down_sampling = transforms.Resize((64, 64))
-        self._32x32_down_sampling = transforms.Resize((32, 32))
-        self._16x16_down_sampling = transforms.Resize((16,16))
 
-    # https://stackoverflow.com/questions/43627405/understanding-getitem-method
-    # this overwrites the built-in __getitem__ method
-    # for this to take effect: dataloader = CelebDataSet() \ dataloader[i]
     def __getitem__(self, index):
+        """ https://stackoverflow.com/questions/43627405/understanding-getitem-method
+
+        this overwrites the built-in __getitem__ method
+        """
+
         image_path = os.path.join(self.img_path, self.image_list[index])
+        x2, x4, target_image, input_image = self.transf.perform(image_path)
         
-        # this shall be your benchmark
-        target_image = Image.open(image_path).convert('RGB')
-        
-        # original downsampled at 64x64. This'll be compared with x2_target_image 2x upsampling
-        x4_target_image = self._64x64_down_sampling(target_image)
-        
-        # original downsampled at 32x32. This'll be compared with input_image 2x upsampling
-        x2_target_image = self._32x32_down_sampling(x4_target_image)
-        
-        # input image is the orginal, downsampled at 16x16
-        input_image = self._16x16_down_sampling(x2_target_image)
-
-        # normalize all images
-        x2_target_image = self.totensor(x2_target_image)
-        x4_target_image = self.totensor(x4_target_image)
-        target_image = self.totensor(target_image)
-        input_image = self.totensor(input_image)
-
-        return x2_target_image, x4_target_image, target_image, input_image
+        return x2, x4, target_image, input_image
 
     def __len__(self):
         return len(self.image_list)
